@@ -19,14 +19,3 @@ func (dealer *Dealer) GetPoints() int {
 	}
 	return totalPoints
 }
-
-func (dealer *Dealer) GetCardNames() []string {
-	var cardNames []string
-	cards := dealer.FaceUpCards
-	for i := 0; i < len(cards); i++ {
-		cardFace := cards[i].Face
-		cardSuit := cards[i].Suit
-		cardNames = append(cardNames, cardFace+" of "+cardSuit)
-	}
-	return cardNames
-}

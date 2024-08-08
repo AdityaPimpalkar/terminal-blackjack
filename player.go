@@ -20,15 +20,3 @@ func (player *Player) GetPoints() int {
 	}
 	return totalPoints
 }
-
-
-func (player *Player) GetCardNames() []string {
-	var cardNames []string
-	cards := player.Cards
-	for i := 0; i < len(cards); i++ {
-		cardFace := cards[i].Face
-		cardSuit := cards[i].Suit
-		cardNames = append(cardNames, cardFace+" of "+cardSuit)
-	}
-	return cardNames
-}
