@@ -11,12 +11,41 @@ import (
 	"time"
 )
 
+type gameModelKeys struct {
+	Space key.Binding
+	Tab   key.Binding
+	Quit  key.Binding
+}
+
+var gameKeys = gameModelKeys{
+	Space: key.NewBinding(
+		key.WithKeys("space"),
+		key.WithHelp("<space>", "Hit!"),
+	),
+	Tab: key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("<tab>", "Stand"),
+	),
+}
+
+func (k gameModelKeys) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Space, k.Tab}, // second column
+	}
+}
+
+func (k gameModelKeys) ShortHelp() []key.Binding {
+	return []key.Binding{k.Space, k.Tab}
+}
+
 type Game struct {
 	Deck          Deck
 	Player        Player
 	Dealer        Dealer
 	playerStood   bool
 	isActiveRound bool
+	keys          gameModelKeys
+	help          help.Model
 }
 
 type GameStatus string
@@ -242,13 +271,13 @@ func gameView(m MainModel) string {
 	return finalView
 }
 
-type keyMap struct {
+type bettingModelKeys struct {
 	Reset key.Binding
 	Enter key.Binding
 	Quit  key.Binding
 }
 
-var keys = keyMap{
+var bettingKeys = bettingModelKeys{
 	Reset: key.NewBinding(
 		key.WithKeys("ctrl+k"),
 		key.WithHelp("ctrl+k", "Reset"),
@@ -263,13 +292,13 @@ var keys = keyMap{
 	),
 }
 
-func (k keyMap) FullHelp() [][]key.Binding {
+func (k bettingModelKeys) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Quit, k.Enter, k.Reset}, // second column
 	}
 }
 
-func (k keyMap) ShortHelp() []key.Binding {
+func (k bettingModelKeys) ShortHelp() []key.Binding {
 	return []key.Binding{k.Quit, k.Enter, k.Reset}
 }
 
@@ -287,17 +316,19 @@ type Betting struct {
 	InputBet     textinput.Model
 	Balance      int
 	Bet          int
+	keys         bettingModelKeys
+	help         help.Model
 	WindowHeight int
 	WindowWidth  int
 }
 
 func bettingView(m MainModel) string {
 	if m.betting.Bet == 0 {
-		m.keys.Enter.SetEnabled(false)
+		m.betting.keys.Enter.SetEnabled(false)
 	}
 	if m.betting.Balance == 0 {
-		m.keys.Enter.SetEnabled(false)
-		m.keys.Reset.SetEnabled(true)
+		m.betting.keys.Enter.SetEnabled(false)
+		m.betting.keys.Reset.SetEnabled(true)
 		m.betting.InputBet.Blur()
 	}
 	remainingBalance := m.betting.Balance - m.betting.Bet
@@ -308,7 +339,7 @@ func bettingView(m MainModel) string {
 		remainingBalance = 0
 		errorText = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Bigger than balance!\n")
 		balanceTextColor = lipgloss.Color("#3C3C3C")
-		m.keys.Enter.SetEnabled(false)
+		m.betting.keys.Enter.SetEnabled(false)
 	}
 	return fmt.Sprintf(
 		lipgloss.Place(
@@ -324,7 +355,7 @@ func bettingView(m MainModel) string {
 				lipgloss.NewStyle().Bold(true).Foreground(balanceTextColor).Render(
 					fmt.Sprintf("Balance: $%d\n", remainingBalance),
 				),
-				m.help.View(m.keys),
+				m.betting.help.View(m.betting.keys),
 			),
 		),
 	)
@@ -335,8 +366,6 @@ type MainModel struct {
 	game         Game
 	windowWidth  int
 	windowHeight int
-	keys         keyMap
-	help         help.Model
 }
 
 func InitModel() MainModel {
@@ -345,13 +374,13 @@ func InitModel() MainModel {
 	input.Focus()
 	input.Prompt = "$"
 	input.CharLimit = 12
-	keys.Reset.SetEnabled(false)
+	bettingKeys.Reset.SetEnabled(false)
 	return MainModel{
-		keys: keys,
-		help: help.New(),
 		betting: Betting{
 			InputBet: input,
 			Balance:  1000,
+			keys:     bettingKeys,
+			help:     help.New(),
 		},
 	}
 }
