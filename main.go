@@ -217,7 +217,7 @@ func gameView(m MainModel) string {
 					cardTopFaceStyle.Render(" "),
 					cardSuitStyle.
 						Width(m.windowWidth/margin).
-						Render("???"),
+						Render("?"),
 					cardBottomFaceStyle.
 						Width(m.windowWidth/margin).
 						Align(lipgloss.Right).
@@ -261,6 +261,12 @@ func gameView(m MainModel) string {
 			Bold(true).
 			Foreground(lipgloss.Color("12")).
 			Render(fmt.Sprintf("Your score: %d", playerPoints)),
+		lipgloss.NewStyle().
+			Width(m.windowWidth).
+			Align(lipgloss.Center).
+			Render(
+				m.game.help.View(m.game.keys),
+			),
 	)
 
 	top := lipgloss.Place(m.windowWidth, m.windowHeight/2, lipgloss.Center, lipgloss.Top, dealerView)
@@ -308,8 +314,10 @@ var (
 )
 
 func validateInput(s string) error {
-	_, err := strconv.ParseInt(s, 10, 64)
-	return err
+	if _, err := strconv.Atoi(s); err != nil {
+		return fmt.Errorf("Invalid input.")
+	}
+	return nil
 }
 
 type Betting struct {
@@ -374,6 +382,7 @@ func InitModel() MainModel {
 	input.Focus()
 	input.Prompt = "$"
 	input.CharLimit = 12
+	input.Validate = validateInput
 	bettingKeys.Reset.SetEnabled(false)
 	return MainModel{
 		betting: Betting{
@@ -381,6 +390,10 @@ func InitModel() MainModel {
 			Balance:  1000,
 			keys:     bettingKeys,
 			help:     help.New(),
+		},
+		game: Game{
+			help: help.New(),
+			keys: gameKeys,
 		},
 	}
 }
@@ -390,7 +403,6 @@ func (m MainModel) Init() tea.Cmd {
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
@@ -426,49 +438,53 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlK:
 			m.betting.Balance = 1000
 			m.betting.InputBet.Focus()
-			m.keys.Enter.SetEnabled(true)
-			m.keys.Reset.SetEnabled(false)
+			m.betting.keys.Enter.SetEnabled(true)
+			m.betting.keys.Reset.SetEnabled(false)
 			return m, nil
 		}
 	case GameStatusMsg:
 		switch msg.status {
 		case tie:
 			time.Sleep(2 * time.Second)
-			m.game.Player.Balance = m.game.Player.Balance + m.betting.Bet
+			m.betting.Balance = m.game.Player.Balance + m.betting.Bet
+			m.betting.Bet = 0
+			m.betting.InputBet.Reset()
 			m.game.Reset()
 			return m, nil
 		case playerWon:
 			time.Sleep(2 * time.Second)
-			m.game.Player.Balance = m.game.Player.Balance + (m.betting.Bet * 2)
+			m.betting.Balance = m.game.Player.Balance + (m.betting.Bet * 2)
+			m.betting.Bet = 0
+			m.betting.InputBet.Reset()
 			m.game.Reset()
 			return m, nil
 		case playerBusted:
 			time.Sleep(2 * time.Second)
-			m.game.Player.Balance = m.game.Player.Balance - m.betting.Bet
+			m.betting.Balance = m.game.Player.Balance
 			m.betting.Bet = 0
-			m.betting.InputBet.SetValue(" ")
+			m.betting.InputBet.Reset()
 			m.game.Reset()
 			return m, nil
 		case dealerDrawing:
 			if m.game.playerStood {
-				time.Sleep(1 * time.Second)
+				time.Sleep(2 * time.Second)
 				m.game.DealerHand()
 				return m, m.game.Status()
 			}
 		case dealerWon:
 			time.Sleep(2 * time.Second)
+			m.betting.Balance = m.game.Player.Balance
+			m.betting.Bet = 0
+
+			m.betting.InputBet.Reset()
 			m.game.Reset()
 			return m, nil
 		}
 	}
 
-	if !m.game.isActiveRound {
-		m.betting.InputBet.Validate = validateInput
-		m.betting.InputBet, cmd = m.betting.InputBet.Update(msg)
-		bet, _ := strconv.ParseInt(m.betting.InputBet.Value(), 10, 64)
-		m.betting.Bet = int(bet)
-	}
-
+	var cmd tea.Cmd
+	m.betting.InputBet, cmd = m.betting.InputBet.Update(msg)
+	m.betting.Bet, _ = strconv.Atoi(m.betting.InputBet.Value())
 	return m, cmd
 }
 
