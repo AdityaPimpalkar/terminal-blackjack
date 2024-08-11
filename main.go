@@ -2,372 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"strconv"
 	"time"
+
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 )
-
-type gameModelKeys struct {
-	Space key.Binding
-	Tab   key.Binding
-	Quit  key.Binding
-}
-
-var gameKeys = gameModelKeys{
-	Space: key.NewBinding(
-		key.WithKeys("space"),
-		key.WithHelp("<space>", "Hit!"),
-	),
-	Tab: key.NewBinding(
-		key.WithKeys("tab"),
-		key.WithHelp("<tab>", "Stand"),
-	),
-}
-
-func (k gameModelKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Space, k.Tab}, // second column
-	}
-}
-
-func (k gameModelKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Space, k.Tab}
-}
-
-type Game struct {
-	Deck          Deck
-	Player        Player
-	Dealer        Dealer
-	playerStood   bool
-	isActiveRound bool
-	keys          gameModelKeys
-	help          help.Model
-}
-
-type GameStatus string
-
-type GameStatusMsg struct {
-	status GameStatus
-}
-
-func (g *Game) DealFirstHand() error {
-	if len(g.Deck.Cards) == 0 {
-		return fmt.Errorf("Deck of cards not found.")
-	}
-	g.Player.Cards = append(g.Player.Cards, g.Deck.Cards[0], g.Deck.Cards[2])
-	g.Dealer.FaceUpCards = append(g.Dealer.FaceUpCards, g.Deck.Cards[1])
-	g.Dealer.FaceDownCards = append(g.Dealer.FaceDownCards, g.Deck.Cards[3])
-	g.Deck.Cards = g.Deck.Cards[4:len(g.Deck.Cards)]
-
-	return nil
-}
-
-func (g *Game) PlayerHand() {
-	g.Player.Cards = append(g.Player.Cards, g.Deck.Cards[0])
-	g.Deck.Cards = g.Deck.Cards[1:len(g.Deck.Cards)]
-}
-
-const (
-	playerWon     GameStatus = "playerWon"
-	playerBusted  GameStatus = "playerBusted"
-	dealerWon     GameStatus = "dealerWon"
-	dealerDrawing GameStatus = "dealerDrawing"
-	dealerBusted  GameStatus = "dealerBusted"
-	tie           GameStatus = "tie"
-)
-
-func (g *Game) Status() tea.Cmd {
-	var status GameStatus
-	playerPoints := g.Player.GetPoints()
-	dealerPoints := g.Dealer.GetPoints()
-	if playerPoints == 21 {
-		status = playerWon
-	} else if playerPoints > 21 {
-		status = playerBusted
-	} else if dealerPoints > 21 {
-		status = playerWon
-	} else if dealerPoints < 17 {
-		status = dealerDrawing
-	} else if playerPoints > dealerPoints {
-		status = playerWon
-	} else {
-		status = dealerWon
-	}
-	return func() tea.Msg {
-		return GameStatusMsg{
-			status: status,
-		}
-	}
-}
-
-func (g *Game) DealerHand() {
-	dealer := g.Dealer
-	deck := g.Deck
-	if len(dealer.FaceDownCards) > 0 {
-		dealer.FaceUpCards = append(dealer.FaceUpCards, dealer.FaceDownCards...)
-		dealer.FaceDownCards = []Card{}
-	} else {
-		dealer.FaceUpCards = append(dealer.FaceUpCards, deck.Cards[0])
-		deck.Cards = deck.Cards[1:len(deck.Cards)]
-	}
-	g.Dealer = dealer
-	g.Deck = deck
-}
-
-func (g *Game) Reset() {
-	g.Player.Cards = []Card{}
-	g.Player.Points = 0
-	g.Dealer.FaceUpCards = []Card{}
-	g.Dealer.FaceDownCards = []Card{}
-	g.isActiveRound = false
-	g.playerStood = false
-	g.Deck.Init()
-}
-
-const margin = 8
-const height = 13
-
-var (
-	dealerCardStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("9"))
-	playerCardStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("12"))
-	cardHiddenStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#3C3C3C"))
-	cardTopFaceStyle = lipgloss.NewStyle().
-				Bold(true).
-				PaddingLeft(1)
-	cardBottomFaceStyle = lipgloss.NewStyle().
-				Bold(true).
-				PaddingRight(1).
-				Align(lipgloss.Right)
-	cardSuitStyle = lipgloss.NewStyle().
-			Bold(true).
-			Height(11).
-			AlignHorizontal(lipgloss.Center).
-			AlignVertical(lipgloss.Center)
-)
-
-func gameView(m MainModel) string {
-	dealer := m.game.Dealer
-	player := m.game.Player
-
-	dealerPoints := dealer.GetPoints()
-	playerPoints := player.GetPoints()
-
-	var dealerCards []string
-
-	var playerCards []string
-	for _, card := range dealer.FaceUpCards {
-		face, suit := card.GetCard()
-		card := dealerCardStyle.
-			Height(height).
-			Width(m.windowWidth / margin).
-			Render(
-				lipgloss.JoinVertical(
-					lipgloss.Top,
-					cardTopFaceStyle.Render(face),
-					cardSuitStyle.
-						Width(m.windowWidth/margin).
-						Render(suit),
-					cardBottomFaceStyle.
-						Width(m.windowWidth/margin).
-						Align(lipgloss.Right).
-						Render(face),
-				),
-			)
-		dealerCards = append(dealerCards, card)
-	}
-
-	for _, card := range player.Cards {
-		face, suit := card.GetCard()
-		card := playerCardStyle.
-			Height(height).
-			Width(m.windowWidth / margin).
-			Render(
-				lipgloss.JoinVertical(
-					lipgloss.Top,
-					cardTopFaceStyle.Render(face),
-					cardSuitStyle.
-						Width(m.windowWidth/margin).
-						Render(suit),
-					cardBottomFaceStyle.
-						Width(m.windowWidth/margin).
-						Align(lipgloss.Right).
-						Render(face),
-				),
-			)
-		playerCards = append(playerCards, card)
-	}
-
-	if len(dealer.FaceDownCards) > 0 {
-		hiddenCard := cardHiddenStyle.
-			Height(height).
-			Width(m.windowWidth / margin).
-			Render(
-				lipgloss.JoinVertical(
-					lipgloss.Top,
-					cardTopFaceStyle.Render(" "),
-					cardSuitStyle.
-						Width(m.windowWidth/margin).
-						Render("?"),
-					cardBottomFaceStyle.
-						Width(m.windowWidth/margin).
-						Align(lipgloss.Right).
-						Render(" "),
-				),
-			)
-		dealerCards = append(dealerCards, hiddenCard)
-
-	}
-	dealerView := lipgloss.JoinVertical(
-		lipgloss.Top,
-		lipgloss.NewStyle().
-			Width(m.windowWidth).
-			Align(lipgloss.Center).
-			Bold(true).
-			Foreground(lipgloss.Color("9")).
-			Render(fmt.Sprintf("Dealer score: %d", dealerPoints)),
-		lipgloss.PlaceHorizontal(
-			m.windowWidth,
-			lipgloss.Center,
-			lipgloss.JoinHorizontal(
-				lipgloss.Center,
-				dealerCards...,
-			),
-		),
-	)
-
-	playerView := lipgloss.JoinVertical(
-		lipgloss.Top,
-		lipgloss.PlaceHorizontal(
-			m.windowWidth,
-			lipgloss.Center,
-			lipgloss.JoinHorizontal(
-				lipgloss.Center,
-				playerCards...,
-			),
-		),
-		lipgloss.NewStyle().
-			Width(m.windowWidth).
-			Align(lipgloss.Center).
-			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Render(fmt.Sprintf("Your score: %d", playerPoints)),
-		lipgloss.NewStyle().
-			Width(m.windowWidth).
-			Align(lipgloss.Center).
-			Render(
-				m.game.help.View(m.game.keys),
-			),
-	)
-
-	top := lipgloss.Place(m.windowWidth, m.windowHeight/2, lipgloss.Center, lipgloss.Top, dealerView)
-	bottom := lipgloss.Place(m.windowWidth, m.windowHeight/2, lipgloss.Center, lipgloss.Bottom, playerView)
-
-	finalView := lipgloss.JoinVertical(lipgloss.Center, top, bottom)
-
-	return finalView
-}
-
-type bettingModelKeys struct {
-	Reset key.Binding
-	Enter key.Binding
-	Quit  key.Binding
-}
-
-var bettingKeys = bettingModelKeys{
-	Reset: key.NewBinding(
-		key.WithKeys("ctrl+k"),
-		key.WithHelp("ctrl+k", "Reset"),
-	),
-	Enter: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("<enter>", "Play!"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("esc", "ctrl+c"),
-		key.WithHelp("esc", "Quit"),
-	),
-}
-
-func (k bettingModelKeys) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.Quit, k.Enter, k.Reset}, // second column
-	}
-}
-
-func (k bettingModelKeys) ShortHelp() []key.Binding {
-	return []key.Binding{k.Quit, k.Enter, k.Reset}
-}
-
-var (
-	textInputStyle = lipgloss.NewStyle().
-		Width(25)
-)
-
-func validateInput(s string) error {
-	if _, err := strconv.Atoi(s); err != nil {
-		return fmt.Errorf("Invalid input.")
-	}
-	return nil
-}
-
-type Betting struct {
-	InputBet     textinput.Model
-	Balance      int
-	Bet          int
-	keys         bettingModelKeys
-	help         help.Model
-	WindowHeight int
-	WindowWidth  int
-}
-
-func bettingView(m MainModel) string {
-	if m.betting.Bet == 0 {
-		m.betting.keys.Enter.SetEnabled(false)
-	}
-	if m.betting.Balance == 0 {
-		m.betting.keys.Enter.SetEnabled(false)
-		m.betting.keys.Reset.SetEnabled(true)
-		m.betting.InputBet.Blur()
-	}
-	remainingBalance := m.betting.Balance - m.betting.Bet
-	var errorText string
-	balanceTextColor := lipgloss.Color("36")
-
-	if remainingBalance < 0 {
-		remainingBalance = 0
-		errorText = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Bigger than balance!\n")
-		balanceTextColor = lipgloss.Color("#3C3C3C")
-		m.betting.keys.Enter.SetEnabled(false)
-	}
-	return fmt.Sprintf(
-		lipgloss.Place(
-			m.windowWidth,
-			m.windowHeight,
-			lipgloss.Position(lipgloss.Center),
-			lipgloss.Position(lipgloss.Center),
-			lipgloss.JoinVertical(
-				lipgloss.Left,
-				lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5")).Render("Your bet? \n"),
-				textInputStyle.Render(m.betting.InputBet.View()),
-				errorText,
-				lipgloss.NewStyle().Bold(true).Foreground(balanceTextColor).Render(
-					fmt.Sprintf("Balance: $%d\n", remainingBalance),
-				),
-				m.betting.help.View(m.betting.keys),
-			),
-		),
-	)
-}
 
 type MainModel struct {
 	betting      Betting
@@ -383,17 +24,17 @@ func InitModel() MainModel {
 	input.Prompt = "$"
 	input.CharLimit = 12
 	input.Validate = validateInput
-	bettingKeys.Reset.SetEnabled(false)
+	bettingModeKeys.Reset.SetEnabled(false)
 	return MainModel{
 		betting: Betting{
 			InputBet: input,
 			Balance:  1000,
-			keys:     bettingKeys,
+			keys:     bettingModeKeys,
 			help:     help.New(),
 		},
 		game: Game{
 			help: help.New(),
-			keys: gameKeys,
+			keys: gameModeKeys,
 		},
 	}
 }
@@ -490,9 +131,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m MainModel) View() string {
 	if m.game.isActiveRound {
-		return gameView(m)
+		return GameView(m)
 	}
-	return bettingView(m)
+	return BettingView(m)
 }
 
 func main() {
