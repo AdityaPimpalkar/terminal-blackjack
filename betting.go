@@ -18,14 +18,13 @@ type bettingKeys struct {
 
 type Betting struct {
 	InputBet     textinput.Model
-	Balance      int
-	Bet          int
 	keys         bettingKeys
 	help         help.Model
+	Balance      int
+	Bet          int
 	WindowHeight int
 	WindowWidth  int
 }
-
 
 var bettingModeKeys = bettingKeys{
 	Reset: key.NewBinding(
@@ -51,7 +50,6 @@ func (k bettingKeys) FullHelp() [][]key.Binding {
 func (k bettingKeys) ShortHelp() []key.Binding {
 	return []key.Binding{k.Quit, k.Enter, k.Reset}
 }
-
 
 var (
 	textInputStyle = lipgloss.NewStyle().

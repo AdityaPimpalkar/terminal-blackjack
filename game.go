@@ -19,10 +19,10 @@ type Game struct {
 	Deck          Deck
 	Player        Player
 	Dealer        Dealer
-	playerStood   bool
-	isActiveRound bool
 	keys          gameKeys
 	help          help.Model
+	playerStood   bool
+	isActiveRound bool
 }
 
 type GameStatus string
@@ -65,7 +65,6 @@ func (k gameKeys) ShortHelp() []key.Binding {
 	return []key.Binding{k.Space, k.Tab}
 }
 
-
 func (g *Game) DealFirstHand() error {
 	if len(g.Deck.Cards) == 0 {
 		return fmt.Errorf("Deck of cards not found")
@@ -83,13 +82,13 @@ func (g *Game) PlayerHand() {
 	g.Deck.Cards = g.Deck.Cards[1:len(g.Deck.Cards)]
 }
 
-
-
 func (g *Game) Status() tea.Cmd {
 	var status GameStatus
 	playerPoints := g.Player.GetPoints()
 	dealerPoints := g.Dealer.GetPoints()
-	if playerPoints == 21 {
+	if playerPoints == dealerPoints {
+		status = tie
+	} else if playerPoints == 21 {
 		status = playerWon
 	} else if playerPoints > 21 {
 		status = playerBusted
