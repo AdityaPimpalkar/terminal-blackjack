@@ -264,10 +264,8 @@ func GameView(m MainModel) string {
 			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("12")).
-			Render(fmt.Sprintf("Your score: %d", playerPoints)),
+			Render(fmt.Sprintf("Your score: %d\n", playerPoints)),
 		lipgloss.NewStyle().
-			Width(m.windowWidth).
-			Align(lipgloss.Center).
 			Render(
 				m.game.help.View(m.game.keys),
 			),
