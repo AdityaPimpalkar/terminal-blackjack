@@ -86,7 +86,7 @@ func (g *Game) Status() tea.Cmd {
 	var status GameStatus
 	playerPoints := g.Player.GetPoints()
 	dealerPoints := g.Dealer.GetPoints()
-	if playerPoints == dealerPoints {
+	if playerPoints == dealerPoints && g.playerStood && dealerPoints > 16 {
 		status = tie
 	} else if playerPoints == 21 {
 		status = playerWon
