@@ -25,11 +25,18 @@ type Celebrate struct {
 	confetti *simulation.System
 }
 
-type frameMsg time.Time
+type CelebrationMsg time.Time
+type WinnerMsg string
 
-func AnimateCelebrate() tea.Cmd {
+func AnimateCelebration() tea.Cmd {
 	return tea.Tick(time.Second/framesPerSecond, func(t time.Time) tea.Msg {
-		return frameMsg(t)
+		return CelebrationMsg(t)
+	})
+}
+
+func Winner() tea.Cmd {
+	return tea.Tick(time.Second*3, func(t time.Time) tea.Msg {
+		return WinnerMsg("")
 	})
 }
 
@@ -61,4 +68,15 @@ func Spawn(width, height int) []*simulation.Particle {
 		particles = append(particles, &p)
 	}
 	return particles
+}
+
+func CelebrationView(m MainModel) string {
+	background := lipgloss.Place(
+		m.windowWidth,
+		m.windowHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		m.celebrate.confetti.Render(),
+	)
+	return background
 }

@@ -19,15 +19,15 @@ type ProgressBarMsg struct {
 }
 
 type MainModel struct {
-	betting        Betting
-	game           Game
-	progress       progress.Model
-	celebrate      Celebrate
-	isProgressView bool
+	betting           Betting
+	game              Game
+	progress          progress.Model
+	celebrate         Celebrate
+	isProgressView    bool
 	isCelebrationView bool
-	phase          int
-	windowWidth    int
-	windowHeight   int
+	phase             int
+	windowWidth       int
+	windowHeight      int
 }
 
 func InitModel() MainModel {
@@ -68,11 +68,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.progress.Width > 70 {
 			m.progress.Width = 70
 		}
-		if m.celebrate.confetti.Frame.Width == 0 && m.celebrate.confetti.Frame.Height == 0 {
-			m.celebrate.confetti.Particles = Spawn(msg.Width, msg.Height)
-		}
-		m.celebrate.confetti.Frame.Width = msg.Width
-		m.celebrate.confetti.Frame.Height = msg.Height
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -156,7 +151,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.betting.InputBet.Reset()
 			m.game.Reset()
 			m.isCelebrationView = true
-			return m, AnimateCelebrate()
+			m.celebrate.confetti.Particles = append(
+				m.celebrate.confetti.Particles,
+				Spawn(m.windowWidth, m.windowHeight)...,
+			)
+			m.celebrate.confetti.Frame.Width = m.windowWidth
+			m.celebrate.confetti.Frame.Height = m.windowHeight
+
+			return m, tea.Batch(
+				AnimateCelebration(),
+				Winner(),
+			)
 		case playerBusted:
 			time.Sleep(2 * time.Second)
 			m.betting.Balance = m.game.Player.Balance
@@ -178,9 +183,13 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.game.Reset()
 			return m, nil
 		}
-	case frameMsg:
+	case CelebrationMsg:
 		m.celebrate.confetti.Update()
-		return m, AnimateCelebrate()
+		return m, AnimateCelebration()
+
+	case WinnerMsg:
+		m.isCelebrationView = false
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -217,9 +226,9 @@ func (m MainModel) View() string {
 	if m.game.isActiveRound {
 		return GameView(m)
 	} else if m.isProgressView {
-		return ProgressView((m))
+		return ProgressView(m)
 	} else if m.isCelebrationView {
-		return m.celebrate.confetti.Render()
+		return CelebrationView(m)
 	}
 	return BettingView(m)
 }
